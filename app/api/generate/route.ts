@@ -12,7 +12,37 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { systemPrompt, userPrompt } = body
+    const { systemPrompt, userPrompt, images } = body
+
+    // Build messages array
+    const messages: Array<{
+      role: string
+      content:
+        | string
+        | Array<{ type: string; text?: string; image_url?: { url: string } }>
+    }> = [{ role: "system", content: systemPrompt }]
+
+    // If images are provided, use vision-capable content format
+    if (images && images.length > 0) {
+      // Using a vision-capable model for image understanding
+      const content: Array<{
+        type: string
+        text?: string
+        image_url?: { url: string }
+      }> = [{ type: "text", text: userPrompt }]
+
+      // Add images to the content
+      images.forEach((imageBase64: string) => {
+        content.push({
+          type: "image_url",
+          image_url: { url: imageBase64 },
+        })
+      })
+
+      messages.push({ role: "user", content })
+    } else {
+      messages.push({ role: "user", content: userPrompt })
+    }
 
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
@@ -26,10 +56,7 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           model: "x-ai/grok-4.1-fast",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
+          messages,
           temperature: 0.7,
           max_tokens: 2500,
         }),
